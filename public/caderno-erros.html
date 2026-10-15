@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caderno de Erros - Estudo para Concursos</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-slate-50 via-amber-50/30 to-orange-50/20 min-h-screen">
+<div id="app"></div>
+<script>
+let state = {
+  entries: JSON.parse(localStorage.getItem('caderno-erros') || '[]'),
+  search: '', filterDisc: '', filterStatus: 'all',
+  showForm: false, showTips: false, editId: null,
+};
+
+function save() { localStorage.setItem('caderno-erros', JSON.stringify(state.entries)); }
+
+function addEntry() {
+  const disc = document.getElementById('f-disc').value.trim();
+  const ass = document.getElementById('f-ass').value.trim();
+  const err = document.getElementById('f-err').value.trim();
+  const conc = document.getElementById('f-conc').value.trim();
+  const tags = document.getElementById('f-tags').value.split(',').map(t => t.trim()).filter(t => t);
+  if (!disc || !ass || !err || !conc) { alert('Preencha todos os campos!'); return; }
+  state.entries.unshift({
+    id: Date.now().toString(36) + Math.random().toString(36).substring(2),
+    disciplina: disc, assunto: ass, erro: err, conceitoCorreto: conc, tags,
+    dataCriacao: new Date().toISOString(), revisoes: 0, consolidado: false,
+  });
+  save(); state.showForm = false; render();
+}
+
+function deleteEntry(id) { if (!confirm('Excluir?')) return; state.entries = state.entries.filter(e => e.id !== id); save(); render(); }
+function toggleConsolidated(id) { state.entries = state.entries.map(e => e.id === id ? {...e, consolidado: !e.consolidado} : e); save(); render(); }
+
+function saveEdit(id) {
+  const disc = document.getElementById('e-disc').value.trim();
+  const ass = document.getElementById('e-ass').value.trim();
+  const err = document.getElementById('e-err').value.trim();
+  const conc = document.getElementById('e-conc').value.trim();
+  const tags = document.getElementById('e-tags').value.split(',').map(t => t.trim()).filter(t => t);
+  state.entries = state.entries.map(e => e.id === id ? {...e, disciplina: disc, assunto: ass, erro: err, conceitoCorreto: conc, tags} : e);
+  save(); state.editId = null; render();
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(state.entries, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `caderno-erros-${new Date().toISOString().split('T')[0]}.json`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function importData() {
+  const input = document.createElement('input'); input.type = 'file'; input.accept = '.json';
+  input.onchange = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try { const imported = JSON.parse(ev.target.result); if (Array.isArray(imported)) { state.entries = imported; save(); render(); } }
+      catch { alert('Arquivo inválido.'); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function getFiltered() {
+  let result = [...state.entries];
+  if (state.search.trim()) {
+    const term = state.search.toLowerCase();
+    result = result.filter(e => e.disciplina.toLowerCase().includes(term) || e.assunto.toLowerCase().includes(term) || e.erro.toLowerCase().includes(term) || e.conceitoCorreto.toLowerCase().includes(term) || e.tags.some(t => t.toLowerCase().includes(term)));
+  }
+  if (state.filterDisc) result = result.filter(e => e.disciplina === state.filterDisc);
+  if (state.filterStatus === 'active') result = result.filter(e => !e.consolidado);
+  if (state.filterStatus === 'consolidated') result = result.filter(e => e.consolidado);
+  result.sort((a, b) => new Date(b.dataCriacao).getTime() - new Date(a.dataCriacao).getTime());
+  return result;
+}
+
+function render() {
+  const filtered = getFiltered();
+  const disciplinas = [...new Set(state.entries.map(e => e.disciplina))].sort();
+  const total = state.entries.length;
+  const consolidados = state.entries.filter(e => e.consolidado).length;
+  const ativos = total - consolidados;
+
+  let html = `
+    <header class="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
+      <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-md text-xl">📕</div>
+          <div><h1 class="text-xl font-bold text-gray-800">Caderno de Erros</h1><p class="text-xs text-gray-500">Revisão cirúrgica para concursos</p></div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="state.showTips=!state.showTips;render()" class="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg">💡</button>
+          <button onclick="exportData()" class="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg" ${total === 0 ? 'disabled' : ''}>📤</button>
+          <button onclick="importData()" class="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg">📥</button>
+        </div>
+      </div>
+    </header>
+  `;
+
+  if (state.showTips) {
+    html += `<div class="max-w-5xl mx-auto px-4 pt-4"><div class="bg-amber-50 border border-amber-200 rounded-xl p-5 shadow-sm">
+      <div class="flex items-start justify-between mb-3"><h3 class="font-bold text-amber-800">💡 Regras de Ouro</h3><button onclick="state.showTips=false;render()" class="text-amber-400 hover:text-amber-600">✕</button></div>
+      <ul class="space-y-2 text-sm text-amber-900">
+        <li>• <strong>Seja telegráfico:</strong> Máx. 3 linhas por entrada!</li>
+        <li>• <strong>Anote os "chutes":</strong> Acertou por eliminação? Trate como erro.</li>
+        <li>• <strong>Podar é essencial:</strong> Consolidou? Exclua. O material deve diminuir.</li>
+        <li>• <strong>Revisão semanal:</strong> Dia fixo para ler as entradas da semana.</li>
+        <li>• <strong>Véspera de prova:</strong> Principal material de leitura na semana anterior.</li>
+      </ul></div></div>`;
+  }
+
+  html += `<main class="max-w-5xl mx-auto px-4 py-6 space-y-6">`;
+
+  if (total > 0) {
+    html += `<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center"><p class="text-2xl font-bold text-gray-800">${total}</p><p class="text-xs text-gray-500">Total</p></div>
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center"><p class="text-2xl font-bold text-orange-600">${ativos}</p><p class="text-xs text-gray-500">Em Revisão</p></div>
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center"><p class="text-2xl font-bold text-green-600">${consolidados}</p><p class="text-xs text-gray-500">Consolidados</p></div>
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center"><p class="text-2xl font-bold text-blue-600">${state.entries.reduce((a, e) => a + e.revisoes, 0)}</p><p class="text-xs text-gray-500">Revisões</p></div>
+    </div>`;
+  }
+
+  if (!state.showForm) {
+    html += `<button onclick="state.showForm=true;render()" class="w-full py-4 px-6 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold rounded-xl shadow-lg text-lg">➕ Registrar Novo Erro</button>`;
+  } else {
+    html += `<div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6 space-y-4">
+      <div class="flex items-center justify-between"><h3 class="text-lg font-bold text-gray-800">✏️ Novo Registro</h3><button onclick="state.showForm=false;render()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button></div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div><label class="block text-sm font-semibold text-gray-700 mb-1">Disciplina *</label><input id="f-disc" list="disc-list" placeholder="Ex: Direito Administrativo" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500" /><datalist id="disc-list">${disciplinas.map(d => `<option value="${d}">`).join('')}</datalist></div>
+        <div><label class="block text-sm font-semibold text-gray-700 mb-1">Assunto *</label><input id="f-ass" placeholder="Ex: Licitações" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500" /></div>
+      </div>
+      <div><label class="block text-sm font-semibold text-gray-700 mb-1">O Erro / Pegadinha *</label><textarea id="f-err" placeholder="Seja telegráfico! Máx. 3 linhas." class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 resize-none" rows="2"></textarea></div>
+      <div><label class="block text-sm font-semibold text-gray-700 mb-1">Conceito Correto *</label><textarea id="f-conc" placeholder="Ex: ERRADO. Aplica-se também quando..." class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 resize-none" rows="2"></textarea></div>
+      <div><label class="block text-sm font-semibold text-gray-700 mb-1">Tags <span class="text-gray-400 font-normal">(vírgula)</span></label><input id="f-tags" placeholder="Ex: pegadinha, chute" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500" /></div>
+      <div class="flex gap-3"><button onclick="addEntry()" class="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-lg shadow-md">💾 Salvar</button><button onclick="state.showForm=false;render()" class="py-3 px-6 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg">Cancelar</button></div>
+    </div>`;
+  }
+
+  if (total > 0) {
+    html += `<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 space-y-3">
+      <input value="${state.search}" oninput="state.search=this.value;render()" placeholder="🔍 Buscar..." class="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm" />
+      <div class="flex flex-wrap gap-2">
+        <select onchange="state.filterDisc=this.value;render()" class="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"><option value="">Todas as Disciplinas</option>${disciplinas.map(d => `<option value="${d}" ${state.filterDisc === d ? 'selected' : ''}>${d}</option>`).join('')}</select>
+        <div class="flex rounded-lg border border-gray-200 overflow-hidden">
+          <button onclick="state.filterStatus='all';render()" class="px-3 py-2 text-xs font-medium ${state.filterStatus === 'all' ? 'bg-amber-500 text-white' : 'bg-white text-gray-600'}">Todos</button>
+          <button onclick="state.filterStatus='active';render()" class="px-3 py-2 text-xs font-medium ${state.filterStatus === 'active' ? 'bg-amber-500 text-white' : 'bg-white text-gray-600'}">Ativos</button>
+          <button onclick="state.filterStatus='consolidated';render()" class="px-3 py-2 text-xs font-medium ${state.filterStatus === 'consolidated' ? 'bg-amber-500 text-white' : 'bg-white text-gray-600'}">Consolidados</button>
+        </div>
+      </div>
+    </div><p class="text-sm text-gray-500">${filtered.length} de ${total} registros</p>`;
+  }
+
+  if (filtered.length > 0) {
+    html += `<div class="space-y-4">`;
+    filtered.forEach(entry => {
+      const days = Math.floor((Date.now() - new Date(entry.dataCriacao).getTime()) / 86400000);
+      if (state.editId === entry.id) {
+        html += `<div class="bg-white rounded-xl shadow-md border-2 border-amber-300 p-5 space-y-3">
+          <h4 class="font-bold text-amber-600">✏️ Editando</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3"><input id="e-disc" value="${entry.disciplina}" class="px-3 py-2 border rounded-lg text-sm" /><input id="e-ass" value="${entry.assunto}" class="px-3 py-2 border rounded-lg text-sm" /></div>
+          <textarea id="e-err" class="w-full px-3 py-2 border rounded-lg text-sm resize-none" rows="2">${entry.erro}</textarea>
+          <textarea id="e-conc" class="w-full px-3 py-2 border rounded-lg text-sm resize-none" rows="2">${entry.conceitoCorreto}</textarea>
+          <input id="e-tags" value="${entry.tags.join(', ')}" class="w-full px-3 py-2 border rounded-lg text-sm" />
+          <div class="flex gap-2"><button onclick="saveEdit('${entry.id}')" class="flex-1 py-2 bg-green-500 text-white font-semibold rounded-lg text-sm">Salvar</button><button onclick="state.editId=null;render()" class="flex-1 py-2 bg-gray-100 text-gray-700 font-semibold rounded-lg text-sm">Cancelar</button></div>
+        </div>`;
+      } else {
+        html += `<div class="bg-white rounded-xl shadow-md border border-gray-100 p-5 group ${entry.consolidado ? 'opacity-60 border-green-200' : ''}">
+          <div class="flex items-start justify-between gap-3 mb-3">
+            <div class="flex flex-wrap items-center gap-2"><span class="px-3 py-1 rounded-full text-xs font-bold border bg-gray-100 text-gray-800 border-gray-200">${entry.disciplina}</span><span class="text-sm text-gray-500">${entry.assunto}</span>${entry.consolidado ? '<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-bold">✓ Consolidado</span>' : ''}</div>
+            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100"><button onclick="state.editId='${entry.id}';render()" class="p-1.5 text-gray-400 hover:text-blue-500 rounded-lg">✏️</button><button onclick="toggleConsolidated('${entry.id}')" class="p-1.5 text-gray-400 hover:text-green-500 rounded-lg">✅</button><button onclick="deleteEntry('${entry.id}')" class="p-1.5 text-gray-400 hover:text-red-500 rounded-lg">🗑️</button></div>
+          </div>
+          <div class="space-y-3">
+            <div class="bg-red-50 border border-red-100 rounded-lg p-3"><p class="text-xs font-bold text-red-600 mb-1">❌ Erro / Pegadinha</p><p class="text-sm text-gray-800">${entry.erro}</p></div>
+            <div class="bg-green-50 border border-green-100 rounded-lg p-3"><p class="text-xs font-bold text-green-700 mb-1">✅ Conceito Correto</p><p class="text-sm text-gray-800">${entry.conceitoCorreto}</p></div>
+          </div>
+          <div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-100"><div class="flex flex-wrap gap-1">${entry.tags.map(t => `<span class="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs">#${t}</span>`).join('')}</div><div class="text-xs text-gray-400">🔄 ${entry.revisoes}x • ${days}d</div></div>
+        </div>`;
+      }
+    });
+    html += `</div>`;
+  } else if (total > 0) {
+    html += `<div class="text-center py-12"><p class="text-4xl mb-4">🔍</p><p class="text-gray-500">Nenhum registro encontrado.</p><button onclick="state.search='';state.filterDisc='';state.filterStatus='all';render()" class="mt-3 text-amber-600 text-sm">Limpar filtros</button></div>`;
+  } else {
+    html += `<div class="text-center py-16"><p class="text-6xl mb-6">📝</p><h2 class="text-xl font-bold text-gray-700 mb-2">Seu caderno está vazio</h2><p class="text-gray-500 text-sm">Comece registrando os erros dos seus simulados. <strong>Seja telegráfico!</strong></p></div>`;
+  }
+
+  html += `</main><footer class="max-w-5xl mx-auto px-4 py-8 text-center"><p class="text-xs text-gray-400">📕 Caderno de Erros • Dados salvos localmente</p></footer>`;
+  document.getElementById('app').innerHTML = html;
+}
+
+render();
+</script>
+</body>
+</html>
