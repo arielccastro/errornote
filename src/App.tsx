@@ -1,6 +1,7 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { ErrorEntry } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
+import { sampleEntries } from './data/sampleEntries';
 import ErrorForm from './components/ErrorForm';
 import ErrorCard from './components/ErrorCard';
 import Stats from './components/Stats';
@@ -12,6 +13,17 @@ export default function App() {
   const [filterDisciplina, setFilterDisciplina] = useState('');
   const [filterConsolidado, setFilterConsolidado] = useState<'all' | 'active' | 'consolidated'>('all');
   const [showTips, setShowTips] = useState(false);
+
+  // Carrega exemplos na primeira vez que o usuário acessa
+  useEffect(() => {
+    if (entries.length === 0) {
+      const hasVisited = localStorage.getItem('caderno-erros-visited');
+      if (!hasVisited) {
+        setEntries(sampleEntries);
+        localStorage.setItem('caderno-erros-visited', 'true');
+      }
+    }
+  }, []);
 
   const disciplinas = useMemo(() => {
     return [...new Set(entries.map(e => e.disciplina))].sort();
