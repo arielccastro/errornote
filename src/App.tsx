@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { ErrorEntry } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import ErrorForm from './components/ErrorForm';
@@ -20,7 +20,6 @@ export default function App() {
   const filteredEntries = useMemo(() => {
     let result = [...entries];
 
-    // Filter by search
     if (search.trim()) {
       const term = search.toLowerCase();
       result = result.filter(e =>
@@ -32,25 +31,22 @@ export default function App() {
       );
     }
 
-    // Filter by disciplina
     if (filterDisciplina) {
       result = result.filter(e => e.disciplina === filterDisciplina);
     }
 
-    // Filter by consolidated status
     if (filterConsolidado === 'active') {
       result = result.filter(e => !e.consolidado);
     } else if (filterConsolidado === 'consolidated') {
       result = result.filter(e => e.consolidado);
     }
 
-    // Sort by date (newest first)
     result.sort((a, b) => new Date(b.dataCriacao).getTime() - new Date(a.dataCriacao).getTime());
 
     return result;
   }, [entries, search, filterDisciplina, filterConsolidado]);
 
-  const handleAdd = useCallback((data: Omit<ErrorEntry, 'id' | 'dataCriacao' | 'revisoes' | 'consolidado'>) => {
+  const handleAdd = (data: Omit<ErrorEntry, 'id' | 'dataCriacao' | 'revisoes' | 'consolidado'>) => {
     const newEntry: ErrorEntry = {
       ...data,
       id: Date.now().toString(36) + Math.random().toString(36).substring(2),
@@ -59,23 +55,23 @@ export default function App() {
       consolidado: false,
     };
     setEntries(prev => [newEntry, ...prev]);
-  }, [setEntries]);
+  };
 
-  const handleDelete = useCallback((id: string) => {
+  const handleDelete = (id: string) => {
     setEntries(prev => prev.filter(e => e.id !== id));
-  }, [setEntries]);
+  };
 
-  const handleEdit = useCallback((id: string, updates: Partial<ErrorEntry>) => {
+  const handleEdit = (id: string, updates: Partial<ErrorEntry>) => {
     setEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
-  }, [setEntries]);
+  };
 
-  const handleMarkConsolidated = useCallback((id: string) => {
+  const handleMarkConsolidated = (id: string) => {
     setEntries(prev => prev.map(e =>
       e.id === id ? { ...e, consolidado: !e.consolidado, dataRevisao: new Date().toISOString() } : e
     ));
-  }, [setEntries]);
+  };
 
-  const handleExport = useCallback(() => {
+  const handleExport = () => {
     const data = JSON.stringify(entries, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -84,9 +80,9 @@ export default function App() {
     a.download = `caderno-erros-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [entries]);
+  };
 
-  const handleImport = useCallback(() => {
+  const handleImport = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
@@ -101,23 +97,22 @@ export default function App() {
             setEntries(imported);
           }
         } catch {
-          alert('Arquivo inválido. Certifique-se de que é um JSON exportado do Caderno de Erros.');
+          alert('Arquivo inválido.');
         }
       };
       reader.readAsText(file);
     };
     input.click();
-  }, [setEntries]);
+  };
 
-  const handleIncrementRevision = useCallback((id: string) => {
+  const handleIncrementRevision = (id: string) => {
     setEntries(prev => prev.map(e =>
       e.id === id ? { ...e, revisoes: e.revisoes + 1, dataRevisao: new Date().toISOString() } : e
     ));
-  }, [setEntries]);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-amber-50/30 to-orange-50/20">
-      {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -164,7 +159,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* Tips Panel */}
       {showTips && (
         <div className="max-w-5xl mx-auto px-4 pt-4">
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 shadow-sm">
@@ -204,15 +198,11 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Content */}
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-        {/* Stats */}
         <Stats entries={entries} />
 
-        {/* Form */}
         <ErrorForm onAdd={handleAdd} existingDisciplines={disciplinas} />
 
-        {/* Search & Filters */}
         {entries.length > 0 && (
           <SearchBar
             search={search}
@@ -225,7 +215,6 @@ export default function App() {
           />
         )}
 
-        {/* Results count */}
         {entries.length > 0 && (
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">
@@ -247,7 +236,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Error List */}
         {filteredEntries.length > 0 ? (
           <div className="space-y-4">
             {filteredEntries.map(entry => (
@@ -286,7 +274,6 @@ export default function App() {
         )}
       </main>
 
-      {/* Footer */}
       <footer className="max-w-5xl mx-auto px-4 py-8 text-center">
         <p className="text-xs text-gray-400">
           📕 Caderno de Erros • Seus dados ficam salvos localmente no navegador
