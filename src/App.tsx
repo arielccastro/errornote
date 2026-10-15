@@ -53,7 +53,7 @@ export default function App() {
   const handleAdd = useCallback((data: Omit<ErrorEntry, 'id' | 'dataCriacao' | 'revisoes' | 'consolidado'>) => {
     const newEntry: ErrorEntry = {
       ...data,
-      id: crypto.randomUUID(),
+      id: Date.now().toString(36) + Math.random().toString(36).substring(2),
       dataCriacao: new Date().toISOString(),
       revisoes: 0,
       consolidado: false,
